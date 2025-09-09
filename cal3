@@ -1,0 +1,148 @@
+function cal3(signalname, name, type, fault, single)
+
+    show_plots = false;  
+    save_plots = true; 
+
+    baseFolders = {'Temp/with_fault/', 'Temp/without_fault/'};
+    resultFolders = {'Results/with_fault', 'Results/without_fault'};    
+    
+    signalname = char(signalname); 
+    name = char(name);
+
+    if ~ismember(type, {'Rectifier', 'Inverter'})
+        error('Type must be either "Rectifier" or "Inverter".');
+    end
+    if ~ismember(fault, {'fault', 'without_fault'})
+        error('Fault must be either "fault" or "without_fault".');
+    end
+    
+    folderIdx = strcmp(fault, 'fault') + 1;
+
+    % Load data
+    A = load(fullfile(baseFolders{folderIdx}, 'HVDC_Data.mat'));
+    B = load(fullfile(baseFolders{folderIdx}, 'HVDC_JFO_Data.mat'));
+    C = load(fullfile(baseFolders{folderIdx}, 'HVDC_SSO_Data.mat'));
+    D = load(fullfile(baseFolders{folderIdx}, 'HVDC_CFPM_Data.mat'));
+    E = load(fullfile(baseFolders{folderIdx}, 'HVDC_Data.mat'));
+    F = load(fullfile(baseFolders{folderIdx}, 'HVDC_INV_Data.mat'));
+    G = load(fullfile(baseFolders{folderIdx}, 'HVDC_P_Data.mat'));
+
+    if strcmp(type, 'Rectifier')
+        A = A.HVDC_Data.Rectifier.(signalname);
+        B = B.HVDC_JFO_Data.Rectifier.(signalname);
+        C = C.HVDC_SSO_Data.Rectifier.(signalname);
+        D = D.HVDC_CFPM_Data.Rectifier.(signalname);
+        E = E.HVDC_Data.Rectifier.(signalname);
+        F = F.HVDC_INV_Data.Rectifier.(signalname);
+        G = G.HVDC_P_Data.Rectifier.(signalname);
+    else
+        A = A.HVDC_Data.Inverter.(signalname);
+        B = B.HVDC_JFO_Data.Inverter.(signalname);
+        C = C.HVDC_SSO_Data.Inverter.(signalname);
+        D = D.HVDC_CFPM_Data.Inverter.(signalname);
+        E = E.HVDC_Data.Inverter.(signalname);
+        F = F.HVDC_INV_Data.Inverter.(signalname);
+        G = G.HVDC_P_Data.Inverter.(signalname);
+    end
+
+    legends = ["FC-SCF", "VSG control", "Multi-objective control", ...
+               "MIDC-SCF", "VSC control", "DVS control", "OMFO-SCCC"];
+    
+    % Create result folder using 'name'
+    resultPath = fullfile(resultFolders{folderIdx}, type, name);
+    if save_plots && ~exist(resultPath, 'dir')
+        mkdir(resultPath);
+    end
+
+    %% Plotting
+    if single
+        % Plot all 7 in a single figure
+        figure('Visible', 'on');
+        hold on;
+        plot(A, 'LineWidth', 1.5);
+        plot(B, 'LineWidth', 1.5);
+        plot(C, 'LineWidth', 1.5);
+        plot(D, 'LineWidth', 1.5);
+        plot(E, 'LineWidth', 1.5);
+        plot(F, 'LineWidth', 1.5);
+        plot(G, 'LineWidth', 1.5);
+        hold off;
+        xlabel("Time");
+        ylabel(name);
+        title([name ' - All Methods']);
+        legend(legends, 'Location', 'best');
+        xlim([0 1]); grid on;
+
+        if save_plots
+            saveas(gcf, fullfile(resultPath, [name '_all.png']));
+        end
+    else
+        % Plot in separate figures as before
+        figure('Visible', 'on');
+        subplot(3, 1, 1);
+        plot(A); title(legends(1)); xlabel("Time"); ylabel(name); xlim([0 1]); grid on;
+        subplot(3, 1, 2);
+        plot(B); title(legends(2)); xlabel("Time"); ylabel(name); xlim([0 1]); grid on;
+        subplot(3, 1, 3);
+        plot(C); title(legends(3)); xlabel("Time"); ylabel(name); xlim([0 1]); grid on;
+        if save_plots
+            saveas(gcf, fullfile(resultPath, [name '1.png']));
+        end
+    
+        figure('Visible', 'on');
+        subplot(2, 1, 1);
+        plot(D); title(legends(4)); xlabel("Time"); ylabel(name); xlim([0 1]); grid on;
+        subplot(2, 1, 2);
+        plot(E); title(legends(5)); xlabel("Time"); ylabel(name); xlim([0 1]); grid on;
+        if save_plots
+            saveas(gcf, fullfile(resultPath, [name '2.png']));
+        end
+    
+        figure('Visible', 'on');
+        subplot(2, 1, 1);
+        plot(F); title(legends(6)); xlabel("Time"); ylabel(name); xlim([0 1]); grid on;
+        subplot(2, 1, 2);
+        plot(G); title(legends(7)); xlabel("Time"); ylabel(name); xlim([0 1]); grid on;
+        if save_plots
+            saveas(gcf, fullfile(resultPath, [name '3.png']));
+        end
+    end
+
+    %% Save CSV
+    if save_plots
+        A = A(:); B = B(:); C = C(:); D = D(:); E = E(:); F = F(:); G = G(:);
+        combinedData = [A'; B'; C'; D'; E'; F'; G'];
+
+        validNames = matlab.lang.makeValidName(legends);
+        combinedDataTable = array2table(combinedData, 'RowNames', validNames);
+
+        csvPath = resultPath;
+        if ~exist(csvPath, 'dir')
+            mkdir(csvPath);
+        end
+        writetable(combinedDataTable, fullfile(csvPath, [name '_combined.csv']), 'WriteRowNames', true);
+    end
+
+    if ~show_plots
+        close(gcf);
+    end
+end
+
+
+function dataOut = extractData(inputData)
+    if isa(inputData, 'timeseries')
+        dataOut = inputData.Data;
+    else
+        dataOut = inputData;
+    end
+    if ~isreal(dataOut)
+        dataOut = [real(dataOut), imag(dataOut)];
+    end
+end
+
+########################
+usage 
+
+cal3("Idc", "Current", "Rectifier", "fault", true)   % single figure with all 7
+cal3("Idc", "Current", "Rectifier", "fault", false)  % separate figures as before
+
