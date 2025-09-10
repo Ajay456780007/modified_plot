@@ -1,0 +1,46 @@
+https://github.com/eriklindernoren/Keras-GAN/blob/master/cgan/cgan.py    -- GAN link github conditional gan
+
+Clip vit code 
+
+import numpy as np
+import torch
+import open_clip
+from tqdm import tqdm
+import os
+
+def CLIP_ViT_Embedding(DB):
+
+    print("Embedding Starts......................")
+    #  Load the saved .npy file containing synthetic text
+    texts = np.load(f"data_loader/gan_text_labels/{DB}_gan_text.npy", allow_pickle=True)
+    print("Number of texts:", len(texts))
+
+    # Load the CLIP model (ViT-B/32)
+    model, _, preprocess = open_clip.create_model_and_transforms('ViT-B-32', pretrained='openai')
+    tokenizer = open_clip.get_tokenizer('ViT-B-32')
+
+    # Tokenize and embed each sentence
+    embedded_texts = []
+    max_len = 0
+
+    with torch.no_grad():
+        for sentence in tqdm(texts, desc="Embedding with CLIP ViT-B/32"):
+            tokens = tokenizer([sentence])  # shape: (1, seq_len)
+            features = model.encode_text(tokens).squeeze(0)  # shape: (512,)
+            embedded_texts.append(features)
+            if features.shape[0] > max_len:
+                max_len = features.shape[0]
+
+    #  Pad all vectors to the same length
+    max_len = 512  # ViT-B/32 always gives 512-dim text embeddings
+    embedded_texts_padded = torch.stack(embedded_texts)  # shape: (num_samples, 512)
+
+    # Convert to numpy if needed
+    embedded_texts_padded_np = embedded_texts_padded.cpu().numpy()
+
+
+    # Save final padded embeddings
+    os.makedirs("data_loader/Embedded_text/",exist_ok=True)
+    np.save(f"data_loader/Embedded_text/{DB}_Embedded_text.npy", embedded_texts_padded_np)
+
+    print("The Embedded data saved for Tamil dataset ")
